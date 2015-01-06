@@ -16,6 +16,7 @@ var path = require("path");
 var url = require("url");
 var fs = require("fs");
 var mime = require("mime");
+var uuid = require("node-uuid");
 
 var messages = {
   "results": [],
@@ -40,6 +41,9 @@ exports.requestHandler = function(request, response) {
   //console.log("Serving request type " + request.method + " for url " + request.url);
 
   var my_path = url.parse(request.url).pathname || 'index.html';
+  if (my_path === "/") {
+    my_path = "/index.html";
+  }
   var full_path = path.join(process.cwd(), '../../client/', my_path);
   var ext = path.extname(my_path);
   var result = JSON.stringify(messages);
@@ -92,12 +96,29 @@ exports.requestHandler = function(request, response) {
       fullBody = JSON.parse(fullBody);
       messages.results.push({
         "username": fullBody.username,
-        "message": fullBody.message
+        "message": fullBody.message,
+        "text": fullBody.message,
+        "objectId": uuid.v4()
       });
-      completeResponse(JSON.stringify(messages));
+      console.log("in POST")
+        //not getting into this function when click submit, something is broken
+      fs.appendFile("./messages.json", 'utf8', function(err, data) {
+        if (err) {
+          console.log("In appendFile", err);
+        }
+      });
+      completeResponse(result);
     });
   } else if (my_path.indexOf("/classes/messages") > -1 || my_path.indexOf("/classes/room") > -1) {
     statusCode = 200;
+    fs.readFile("./messages.json", function(err, data) {
+      if (err) {
+        console.log("In readFile", err);
+      }
+      //console.log(data.toString());
+      // we are in this function and data.toString() somehow is been console.log into the terminal
+      // but seems it's not been passed into the completeResponse function correctly
+    });
     completeResponse(result);
   } else {
     statusCode = 200;
