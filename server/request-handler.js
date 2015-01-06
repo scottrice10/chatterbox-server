@@ -15,6 +15,7 @@ this file and include it in basic-server.js so that it actually works.
 var path = require("path");
 var url = require("url");
 var fs = require("fs");
+var mime = require("mime");
 
 var messages = {
   "results": [],
@@ -39,8 +40,9 @@ exports.requestHandler = function(request, response) {
   //console.log("Serving request type " + request.method + " for url " + request.url);
 
   var my_path = url.parse(request.url).pathname || 'index.html';
-  var full_path = path.join("/Users/student/Desktop/2014-12-chatterbox-server/client/", my_path);
+  var full_path = path.join(process.cwd(), '../../client/', my_path);
   var ext = path.extname(my_path);
+  var result = JSON.stringify(messages);
 
   var extensions = {
     ".html": "text/html",
@@ -51,8 +53,31 @@ exports.requestHandler = function(request, response) {
     ".jpg": "image/jpeg"
   };
 
+  var completeResponse = function(result) {
+    // See the note below about CORS headers.
+    var headers = defaultCorsHeaders;
+
+    // Tell the client we are sending them plain text.
+    //
+    // You will need to change this if you are sending something
+    // other than plain text, like JSON or HTML.
+    headers['Content-Type'] = mime.lookup(full_path);
+
+    // .writeHead() writes to the request line and headers of the response,
+    // which includes the status and all headers.
+    response.writeHead(statusCode, headers);
+
+    // Make sure to always call response.end() - Node may not send
+    // anything back to the client until you do. The string you pass to
+    // response.end() will be the body of the response - i.e. what shows
+    // up in the browser.
+    //
+    // Calling .end "flushes" the response's internal buffer, forcing
+    // node to actually send all the data over to the client.
+    response.end(result);
+  };
+
   var statusCode;
-  console.log(request.method)
   if (request.method === "POST" && (my_path === "/classes/messages" || my_path === "/classes/room")) {
     statusCode = 201;
 
@@ -69,42 +94,25 @@ exports.requestHandler = function(request, response) {
         "username": fullBody.username,
         "message": fullBody.message
       });
+      completeResponse(JSON.stringify(messages));
     });
-  } else if (my_path === "/classes/messages" || my_path === "/classes/room" || my_path === "index.html") {
+  } else if (my_path.indexOf("/classes/messages") > -1 || my_path.indexOf("/classes/room") > -1) {
+    statusCode = 200;
+    completeResponse(result);
+  } else {
     statusCode = 200;
 
-    fs.readFile("../client/index.html", function(err, data) {
+    fs.readFile(process.cwd() + "/../client" + my_path, function(err, html) {
       if (err) {
-        console.log(err);
+        statusCode = 404;
+        completeResponse(result);
       } else {
-        console.log(data);
+        result = html.toString();
       }
+
+      completeResponse(result);
     });
-  } else {
-    statusCode = 404;
   }
-
-  // See the note below about CORS headers.
-  var headers = defaultCorsHeaders;
-
-  // Tell the client we are sending them plain text.
-  //
-  // You will need to change this if you are sending something
-  // other than plain text, like JSON or HTML.
-  headers['Content-Type'] = "text/plain";
-
-  // .writeHead() writes to the request line and headers of the response,
-  // which includes the status and all headers.
-  response.writeHead(statusCode, headers);
-
-  // Make sure to always call response.end() - Node may not send
-  // anything back to the client until you do. The string you pass to
-  // response.end() will be the body of the response - i.e. what shows
-  // up in the browser.
-  //
-  // Calling .end "flushes" the response's internal buffer, forcing
-  // node to actually send all the data over to the client.
-  response.end(JSON.stringify(messages));
 };
 
 // These headers will allow Cross-Origin Resource Sharing (CORS).
